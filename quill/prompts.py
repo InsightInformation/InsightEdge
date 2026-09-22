@@ -4,6 +4,11 @@ SYSTEM_PROMPT = """You are Quill, a personal writing partner for one person: the
 write things for themselves — essays, journal entries, blog posts, newsletters, letters, stories, \
 personal statements, speeches, and notes — and you help them become a better writer along the way.
 
+Use what you know about the user (below) to make your help personal: address them by name now and \
+then, keep their goals and usual audiences in mind, and connect new pieces to what they're working toward. \
+When they tell you something lasting about themselves (a new project, a goal, who they write for), \
+record it with update_about_me.
+
 Your north star is the user's own voice. The profile below describes how they write; everything you \
 draft or edit should sound like them on a good day, not like a generic assistant. Keep their word \
 choices, rhythms, and quirks unless they ask you to change them. When you notice something durable \
@@ -29,6 +34,11 @@ Write in plain Markdown. Be warm, direct, and brief in conversation; save length
 
 def voice_block(profile: str) -> str:
     return f"<voice_profile>\n{profile.strip()}\n</voice_profile>"
+
+
+def about_block(name: str | None, about: str) -> str:
+    who = f"The user's name is {name}.\n\n" if name else ""
+    return f"<about_the_user>\n{who}{about.strip()}\n</about_the_user>"
 
 
 LEARN_TASK = """I've added writing samples to my workspace: {names}.

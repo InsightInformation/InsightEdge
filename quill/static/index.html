@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quill</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪶</text></svg>">
+<style>
+:root {
+  --bg: #faf8f4; --panel: #ffffff; --sidebar: #f2eee6; --ink: #22201c; --muted: #6f6a60;
+  --line: #e4ded2; --accent: #7a4f2b; --accent-ink: #fff; --user: #efe7da; --chip: #ece6da;
+  --danger: #a33a2c; --shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.05);
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1a18; --panel: #232220; --sidebar: #201f1c; --ink: #ebe6dc; --muted: #a39d91;
+    --line: #36332e; --accent: #d49a62; --accent-ink: #1b1a18; --user: #2e2b26; --chip: #302d28;
+    --danger: #e0806f; --shadow: 0 1px 3px rgba(0,0,0,.3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.hidden { display: none !important; }
+
+/* layout */
+.app { display: grid; grid-template-columns: 270px 1fr; height: 100vh; }
+aside { background: var(--sidebar); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.brand { padding: 18px 18px 6px; font-family: var(--serif); font-size: 22px; }
+.greeting { padding: 0 18px 12px; color: var(--muted); font-size: 14px; }
+.side-scroll { overflow-y: auto; padding: 0 10px 12px; flex: 1; }
+.side-h { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 16px 8px 6px; }
+.side-btn { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: 0; padding: 7px 8px; border-radius: 8px; }
+.side-btn:hover { background: var(--chip); }
+.side-btn .meta { margin-left: auto; color: var(--muted); font-size: 12px; }
+.side-btn.primary { background: var(--accent); color: var(--accent-ink); justify-content: center; font-weight: 600; margin: 4px 0 2px; }
+.side-btn.primary:hover { filter: brightness(1.05); }
+.empty { color: var(--muted); font-size: 13px; padding: 4px 8px; }
+.side-foot { border-top: 1px solid var(--line); padding: 8px 10px; }
+.menu-toggle { display: none; }
+
+main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.chat { flex: 1; overflow-y: auto; padding: 28px 16px 12px; }
+.thread { max-width: 760px; margin: 0 auto; }
+.msg { margin: 0 0 22px; }
+.msg.user .bubble { background: var(--user); border-radius: 14px; padding: 10px 14px; margin-left: 15%; white-space: pre-wrap; }
+.msg.quill .bubble { font-family: var(--serif); font-size: 17px; line-height: 1.65; }
+.msg.quill .bubble h1, .msg.quill .bubble h2, .msg.quill .bubble h3 { line-height: 1.25; margin: 1.1em 0 .4em; }
+.msg.quill .bubble p { margin: 0 0 .85em; }
+.msg.quill .bubble blockquote { margin: 0 0 .85em; padding-left: 14px; border-left: 3px solid var(--line); color: var(--muted); }
+.msg.quill .bubble pre { background: var(--chip); padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
+.msg.quill .bubble code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85em; }
+.msg.quill .bubble hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
+.msg-tools { display: flex; gap: 6px; margin-top: 4px; }
+.mini { background: none; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 12px; color: var(--muted); }
+.mini:hover { color: var(--ink); }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: var(--chip); color: var(--muted); font: 12px var(--sans); border-radius: 999px; padding: 3px 10px; margin: 2px 0 10px; }
+.error { color: var(--danger); font-family: var(--sans); font-size: 14px; }
+.typing::after { content: "▍"; animation: blink 1s steps(1) infinite; color: var(--accent); }
+@keyframes blink { 50% { opacity: 0; } }
+
+.welcome { max-width: 640px; margin: 8vh auto 0; text-align: center; }
+.welcome h1 { font-family: var(--serif); font-weight: 500; font-size: 32px; margin: 0 0 8px; }
+.welcome p { color: var(--muted); margin: 0 0 22px; }
+.starters { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; text-align: left; }
+.starter { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); }
+.starter b { display: block; margin-bottom: 2px; }
+.starter span { color: var(--muted); font-size: 13px; }
+.starter:hover { border-color: var(--accent); }
+
+.composer { padding: 10px 16px 18px; }
+.composer-inner { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px; box-shadow: var(--shadow); }
+.composer textarea { flex: 1; border: 0; outline: 0; resize: none; background: transparent; padding: 6px 8px; max-height: 40vh; min-height: 24px; }
+.send { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 8px 14px; font-weight: 600; }
+.send:disabled { opacity: .5; cursor: default; }
+.hint { max-width: 760px; margin: 6px auto 0; color: var(--muted); font-size: 12px; text-align: center; }
+
+/* modal / editor */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+.modal { background: var(--panel); border-radius: 16px; box-shadow: var(--shadow); width: min(860px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.modal header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.modal header h2 { font-family: var(--serif); font-weight: 500; margin: 0; font-size: 20px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal .body { padding: 16px 18px; overflow-y: auto; flex: 1; }
+.modal footer { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding: 12px 18px; border-top: 1px solid var(--line); }
+.modal textarea.doc { width: 100%; min-height: 55vh; border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--bg); font: 16px/1.65 var(--serif); resize: vertical; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 7px 14px; }
+.btn:hover { border-color: var(--accent); }
+.btn.go { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.x { background: none; border: 0; font-size: 22px; line-height: 1; color: var(--muted); }
+.wc { color: var(--muted); font-size: 12px; margin-right: auto; align-self: center; }
+label { display: block; font-weight: 600; margin: 14px 0 4px; }
+label small { font-weight: 400; color: var(--muted); }
+.field { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; background: var(--bg); }
+textarea.field { min-height: 70px; resize: vertical; }
+.note { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+.note a { color: var(--accent); }
+.status { font-size: 13px; color: var(--muted); align-self: center; margin-right: auto; }
+
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; }
+  aside { position: fixed; inset: 0 25% 0 0; z-index: 5; transform: translateX(-100%); transition: transform .2s; box-shadow: var(--shadow); }
+  aside.open { transform: none; }
+  .menu-toggle { display: inline-block; position: fixed; top: 10px; left: 10px; z-index: 4; }
+  .chat { padding-top: 54px; }
+  .msg.user .bubble { margin-left: 8%; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside id="sidebar">
+    <div class="brand">🪶 Quill</div>
+    <div class="greeting" id="greeting"></div>
+    <div class="side-scroll">
+      <button class="side-btn primary" id="newChat">+ New conversation</button>
+      <div class="side-h">Start something</div>
+      <button class="side-btn" data-start="draft">✍️ Draft something new</button>
+      <button class="side-btn" data-start="edit">🩹 Edit a piece</button>
+      <button class="side-btn" data-start="critique">🔍 Get feedback</button>
+      <button class="side-btn" data-start="brainstorm">💡 Brainstorm ideas</button>
+      <button class="side-btn" id="learnBtn">🎙️ Teach Quill my voice</button>
+      <div class="side-h">My drafts</div>
+      <div id="drafts"></div>
+      <div class="side-h">About me</div>
+      <button class="side-btn" data-doc="voice">🗣️ My voice profile</button>
+      <button class="side-btn" data-doc="about">🙂 About me</button>
+      <button class="side-btn" data-doc="notes">🗒️ Notes & ideas</button>
+    </div>
+    <div class="side-foot"><button class="side-btn" id="settingsBtn">⚙️ Settings</button></div>
+  </aside>
+  <main>
+    <button class="btn menu-toggle" id="menuToggle" aria-label="Menu">☰</button>
+    <div class="chat" id="chat"><div class="thread" id="thread"></div></div>
+    <div class="composer">
+      <div class="composer-inner">
+        <textarea id="input" rows="1" placeholder="Tell Quill what you want to write…"></textarea>
+        <button class="send" id="send">Send</button>
+      </div>
+      <div class="hint">Enter to send · Shift+Enter for a new line · Everything stays on your computer except what's sent to Claude</div>
+    </div>
+  </main>
+</div>
+
+<div class="overlay hidden" id="overlay"><div class="modal" id="modal"></div></div>
+
+<script>
+const TOKEN = "__QUILL_TOKEN__";
+let state = null;
+let busy = false;
+
+// ---------- api ----------
+async function api(path, body) {
+  const opts = { headers: { "X-Quill-Token": TOKEN } };
+  if (body !== undefined) {
+    opts.method = "POST";
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+// ---------- tiny, safe markdown ----------
+function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function inline(s) {
+  return s
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
+    .replace(/(^|\W)_([^_\s][^_]*)_(?=\W|$)/g, "$1<em>$2</em>");
+}
+function md(src) {
+  const lines = esc(src).split("\n");
+  let html = "", para = [], list = null, inCode = false, code = [];
+  const flushPara = () => { if (para.length) { html += `<p>${inline(para.join("<br>"))}</p>`; para = []; } };
+  const flushList = () => { if (list) { html += `<${list.tag}>${list.items.map(i => `<li>${inline(i)}</li>`).join("")}</${list.tag}>`; list = null; } };
+  for (const line of lines) {
+    if (line.startsWith("```")) {
+      if (inCode) { html += `<pre><code>${code.join("\n")}</code></pre>`; code = []; inCode = false; }
+      else { flushPara(); flushList(); inCode = true; }
+      continue;
+    }
+    if (inCode) { code.push(line); continue; }
+    let m;
+    if (!line.trim()) { flushPara(); flushList(); }
+    else if ((m = line.match(/^(#{1,4})\s+(.*)/))) { flushPara(); flushList(); const n = Math.min(m[1].length + 1, 4); html += `<h${n}>${inline(m[2])}</h${n}>`; }
+    else if (/^(-{3,}|\*{3,})\s*$/.test(line)) { flushPara(); flushList(); html += "<hr>"; }
+    else if ((m = line.match(/^&gt;\s?(.*)/))) { flushPara(); flushList(); html += `<blockquote>${inline(m[1])}</blockquote>`; }
+    else if ((m = line.match(/^\s*[-*•]\s+(.*)/))) { flushPara(); if (!list || list.tag !== "ul") { flushList(); list = { tag: "ul", items: [] }; } list.items.push(m[1]); }
+    else if ((m = line.match(/^\s*\d+[.)]\s+(.*)/))) { flushPara(); if (!list || list.tag !== "ol") { flushList(); list = { tag: "ol", items: [] }; } list.items.push(m[1]); }
+    else { flushList(); para.push(line); }
+  }
+  if (inCode) html += `<pre><code>${code.join("\n")}</code></pre>`;
+  flushPara(); flushList();
+  return html;
+}
+
+// ---------- sidebar ----------
+const $ = (id) => document.getElementById(id);
+function renderSidebar() {
+  const first = (state.name || "").split(" ")[0];
+  const hour = new Date().getHours();
+  const part = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+  $("greeting").textContent = first ? `Good ${part}, ${first}.` : "";
+  const box = $("drafts");
+  box.innerHTML = "";
+  if (!state.drafts.length) { box.innerHTML = '<div class="empty">Nothing yet. Drafts Quill saves appear here.</div>'; return; }
+  for (const d of state.drafts) {
+    const b = document.createElement("button");
+    b.className = "side-btn";
+    b.innerHTML = `📄 <span>${esc(d.name)}</span><span class="meta">${d.words}w</span>`;
+    b.onclick = () => openDraft(d.name);
+    box.appendChild(b);
+  }
+}
+async function refresh() { state = await api("/api/state"); renderSidebar(); return state; }
+
+// ---------- chat ----------
+function scrollDown() { const c = $("chat"); c.scrollTop = c.scrollHeight; }
+function welcome() {
+  const first = (state.name || "").split(" ")[0];
+  const hasVoice = state.samples.length > 0;
+  $("thread").innerHTML = `
+    <div class="welcome">
+      <h1>What are we writing${first ? ", " + esc(first) : ""}?</h1>
+      <p>${hasVoice ? "Quill knows your voice and will write like you." : "Tip: teach Quill your voice first so everything sounds like you."}</p>
+      <div class="starters">
+        ${hasVoice ? "" : `<button class="starter" data-learn><b>🎙️ Teach Quill my voice</b><span>Paste something you've written</span></button>`}
+        <button class="starter" data-start="draft"><b>✍️ Draft something</b><span>An essay, post, letter, or story</span></button>
+        <button class="starter" data-start="edit"><b>🩹 Edit a piece</b><span>Paste it in and say what to fix</span></button>
+        <button class="starter" data-start="critique"><b>🔍 Honest feedback</b><span>Like a trusted editor would give</span></button>
+        <button class="starter" data-start="brainstorm"><b>💡 Brainstorm</b><span>Angles, openings, and titles</span></button>
+        <button class="starter" data-prompt="Give me a 10-minute journaling prompt that fits what I'm working on, then help me turn what I write into something worth keeping."><b>📓 Journal with me</b><span>A prompt, then shape the result</span></button>
+      </div>
+    </div>`;
+  bindStarters($("thread"));
+}
+function addUser(text) {
+  $("thread").querySelector(".welcome")?.remove();
+  const el = document.createElement("div");
+  el.className = "msg user";
+  el.innerHTML = `<div class="bubble"></div>`;
+  el.querySelector(".bubble").textContent = text;
+  $("thread").appendChild(el);
+  scrollDown();
+}
+function addQuill() {
+  const el = document.createElement("div");
+  el.className = "msg quill";
+  el.innerHTML = `<div class="steps"></div><div class="bubble typing"></div>`;
+  $("thread").appendChild(el);
+  scrollDown();
+  return el;
+}
+
+async function send(text) {
+  text = (text ?? $("input").value).trim();
+  if (!text || busy) return;
+  busy = true; $("send").disabled = true;
+  $("input").value = ""; autosize();
+  addUser(text);
+  const el = addQuill();
+  const bubble = el.querySelector(".bubble");
+  let raw = "";
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "X-Quill-Token": TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text }),
+    });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Request failed"); }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (!chunk.startsWith("data: ")) continue;
+        const ev = JSON.parse(chunk.slice(6));
+        if (ev.type === "text") { raw += ev.text; bubble.innerHTML = md(raw.trim()); }
+        else if (ev.type === "tool") {
+          const chip = document.createElement("div");
+          chip.className = "chip"; chip.textContent = "· " + ev.label + "…";
+          el.querySelector(".steps").appendChild(chip);
+        }
+        else if (ev.type === "error") { bubble.insertAdjacentHTML("beforeend", `<p class="error">${esc(ev.message)}</p>`); }
+        scrollDown();
+      }
+    }
+  } catch (e) {
+    bubble.insertAdjacentHTML("beforeend", `<p class="error">${esc(e.message)}</p>`);
+  } finally {
+    bubble.classList.remove("typing");
+    if (raw.trim()) {
+      const tools = document.createElement("div");
+      tools.className = "msg-tools";
+      tools.innerHTML = `<button class="mini" data-copy>Copy</button><button class="mini" data-keep>Save as draft</button>`;
+      tools.querySelector("[data-copy]").onclick = (ev) => { navigator.clipboard.writeText(raw.trim()); ev.target.textContent = "Copied"; };
+      tools.querySelector("[data-keep]").onclick = () => saveAsDraft(raw.trim());
+      el.appendChild(tools);
+    }
+    busy = false; $("send").disabled = false;
+    $("input").focus();
+    refresh().catch(() => {});
+  }
+}
+
+const STARTERS = {
+  draft: "Help me draft: ",
+  edit: "Edit this for me (tell me what to focus on, then paste the piece below):\n\n",
+  critique: "Give me honest feedback on this piece:\n\n",
+  brainstorm: "Help me brainstorm: ",
+};
+function useStarter(kind) {
+  $("input").value = STARTERS[kind]; autosize();
+  $("input").focus();
+  $("input").setSelectionRange($("input").value.length, $("input").value.length);
+  $("sidebar").classList.remove("open");
+}
+function bindStarters(root) {
+  root.querySelectorAll("[data-start]").forEach(b => b.onclick = () => useStarter(b.dataset.start));
+  root.querySelectorAll("[data-learn]").forEach(b => b.onclick = openLearn);
+  root.querySelectorAll("[data-prompt]").forEach(b => b.onclick = () => send(b.dataset.prompt));
+}
+function autosize() { const t = $("input"); t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }
+
+// ---------- modals ----------
+function modal(html) { $("modal").innerHTML = html; $("overlay").classList.remove("hidden"); $("modal").querySelector("[data-close]")?.addEventListener("click", closeModal); }
+function closeModal() { $("overlay").classList.add("hidden"); }
+$("overlay").addEventListener("mousedown", (e) => { if (e.target === $("overlay") && !state.needs_setup) closeModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !state?.needs_setup) closeModal(); });
+const words = (s) => (s.trim().match(/\S+/g) || []).length;
+
+async function openDraft(name) {
+  $("sidebar").classList.remove("open");
+  const d = await api("/api/draft?name=" + encodeURIComponent(name));
+  modal(`
+    <header><h2>📄 ${esc(d.name)}</h2><button class="x" data-close>×</button></header>
+    <div class="body"><textarea class="doc" id="docText"></textarea></div>
+    <footer>
+      <span class="wc" id="wc"></span>
+      <button class="btn" id="dCopy">Copy</button>
+      <button class="btn" id="dCrit">Get feedback</button>
+      <button class="btn" id="dEdit">Ask Quill to edit</button>
+      <button class="btn go" id="dSave">Save</button>
+    </footer>`);
+  const t = $("docText"); t.value = d.content;
+  const wc = () => $("wc").textContent = words(t.value) + " words"; wc(); t.oninput = wc;
+  $("dCopy").onclick = () => { navigator.clipboard.writeText(t.value); $("dCopy").textContent = "Copied"; };
+  $("dSave").onclick = async () => { await api("/api/draft", { name: d.name, content: t.value }); $("dSave").textContent = "Saved ✓"; refresh(); };
+  $("dEdit").onclick = async () => {
+    await api("/api/draft", { name: d.name, content: t.value });
+    closeModal(); $("input").value = `Edit my draft "${d.name}": `; autosize(); $("input").focus();
+  };
+  $("dCrit").onclick = async () => {
+    await api("/api/draft", { name: d.name, content: t.value });
+    closeModal(); send(`Give me an editor's critique of my draft "${d.name}". Don't rewrite it.`);
+  };
+}
+
+function saveAsDraft(text) {
+  modal(`
+    <header><h2>Save as draft</h2><button class="x" data-close>×</button></header>
+    <div class="body"><label>Name</label><input class="field" id="dn" placeholder="e.g. running-at-40"></div>
+    <footer><button class="btn" data-close2>Cancel</button><button class="btn go" id="dnSave">Save</button></footer>`);
+  $("modal").querySelector("[data-close2]").onclick = closeModal;
+  $("dn").focus();
+  $("dnSave").onclick = async () => {
+    const name = $("dn").value.trim(); if (!name) return;
+    await api("/api/draft", { name, content: text }); closeModal(); refresh();
+  };
+}
+
+const DOCS = {
+  voice: { title: "🗣️ My voice profile", help: "How you write. Quill builds this from your samples and updates it as it learns. Edit freely." },
+  about: { title: "🙂 About me", help: "Who you are, what you write, who you write for, and what you're working toward." },
+  notes: { title: "🗒️ Notes & ideas", help: "Ideas Quill jots down while you work." },
+};
+function openDoc(kind) {
+  $("sidebar").classList.remove("open");
+  const doc = DOCS[kind];
+  const editable = kind !== "notes";
+  modal(`
+    <header><h2>${doc.title}</h2><button class="x" data-close>×</button></header>
+    <div class="body"><p class="note" style="margin:0 0 10px">${doc.help}</p><textarea class="doc" id="docText" ${editable ? "" : "readonly"}></textarea></div>
+    <footer>${editable ? '<button class="btn go" id="docSave">Save</button>' : '<button class="btn" data-close2>Close</button>'}</footer>`);
+  $("docText").value = state[kind];
+  if (editable) $("docSave").onclick = async () => { await api("/api/" + kind, { content: $("docText").value }); $("docSave").textContent = "Saved ✓"; await refresh(); };
+  else $("modal").querySelector("[data-close2]").onclick = closeModal;
+}
+
+function openLearn() {
+  $("sidebar").classList.remove("open");
+  modal(`
+    <header><h2>🎙️ Teach Quill your voice</h2><button class="x" data-close>×</button></header>
+    <div class="body">
+      <p class="note" style="margin-top:0">Paste something you wrote and like: a blog post, a letter, an essay, a long email. The more natural and "you" it is, the better. You can add several, one at a time.</p>
+      <label>What is it? <small>(a short name)</small></label>
+      <input class="field" id="sName" placeholder="e.g. blog post about my dad">
+      <label>Your writing</label>
+      <textarea class="field" id="sText" style="min-height:40vh"></textarea>
+    </div>
+    <footer><span class="status" id="sStatus"></span><button class="btn go" id="sGo">Learn my voice</button></footer>`);
+  $("sName").focus();
+  $("sGo").onclick = async () => {
+    try {
+      const r = await api("/api/sample", { name: $("sName").value, text: $("sText").value });
+      closeModal(); send(r.prompt);
+    } catch (e) { $("sStatus").textContent = e.message; }
+  };
+}
+
+function aboutTemplate(what, who, goals) {
+  let s = "# About Me\n";
+  if (what) s += `\n## What I write\n${what}\n`;
+  if (who) s += `\n## Who I write for\n${who}\n`;
+  if (goals) s += `\n## What I'm working toward\n${goals}\n`;
+  return s;
+}
+
+function openSetup() {
+  const needKey = !state.key_source;
+  modal(`
+    <header><h2>🪶 Welcome to Quill</h2></header>
+    <div class="body">
+      <p class="note" style="margin-top:0">Quill is your personal writing partner. A few questions so it can help you properly. You can change all of this later.</p>
+      <label>What should Quill call you?</label>
+      <input class="field" id="uName" placeholder="Your first name" value="${esc(state.name || "")}">
+      <label>What do you like to write? <small>(optional)</small></label>
+      <textarea class="field" id="uWhat" placeholder="e.g. personal essays, a weekly newsletter, journal entries, short stories"></textarea>
+      <label>Who do you usually write for? <small>(optional)</small></label>
+      <input class="field" id="uWho" placeholder="e.g. just me, friends and family, my newsletter subscribers">
+      <label>Anything you're working toward? <small>(optional)</small></label>
+      <input class="field" id="uGoals" placeholder="e.g. finish a memoir draft this year, write more clearly and confidently">
+      ${needKey ? `
+      <label>Your Anthropic API key</label>
+      <input class="field" id="uKey" type="password" placeholder="sk-ant-…" autocomplete="off">
+      <p class="note">Get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. It's saved only on this computer, in a private file.</p>` : ""}
+    </div>
+    <footer><span class="status" id="uStatus"></span><button class="btn go" id="uGo">Let's write →</button></footer>`);
+  $("uName").focus();
+  $("uGo").onclick = async () => {
+    const name = $("uName").value.trim();
+    if (!name) { $("uStatus").textContent = "Tell Quill your name first."; return; }
+    const key = needKey ? $("uKey").value.trim() : "";
+    if (needKey && !key) { $("uStatus").textContent = "Quill needs an API key to work."; return; }
+    const what = $("uWhat").value.trim(), who = $("uWho").value.trim(), goals = $("uGoals").value.trim();
+    const body = { name, api_key: key };
+    if (what || who || goals) body.about = aboutTemplate(what, who, goals);
+    try { state = await api("/api/setup", body); closeModal(); renderSidebar(); welcome(); }
+    catch (e) { $("uStatus").textContent = e.message; }
+  };
+}
+
+function openSettings() {
+  $("sidebar").classList.remove("open");
+  const keyNote = state.key_source === "env" ? "Using the key from your ANTHROPIC_API_KEY environment variable."
+    : state.key_source === "saved" ? "A key is saved. Leave blank to keep it." : "No key saved yet.";
+  const efforts = ["low", "medium", "high", "xhigh", "max"].map(e => `<option ${e === state.effort ? "selected" : ""}>${e}</option>`).join("");
+  modal(`
+    <header><h2>⚙️ Settings</h2><button class="x" data-close>×</button></header>
+    <div class="body">
+      <label>Your name</label><input class="field" id="sN" value="${esc(state.name)}">
+      <label>API key</label><input class="field" id="sK" type="password" placeholder="sk-ant-…" autocomplete="off">
+      <p class="note">${keyNote}</p>
+      <label>Model</label><input class="field" id="sM" value="${esc(state.model)}">
+      <p class="note">Default is claude-opus-5.</p>
+      <label>Effort <small>— how hard Quill thinks before answering</small></label>
+      <select class="field" id="sE">${efforts}</select>
+      <p class="note">"high" gives the best writing. "medium" or "low" are faster and cheaper.</p>
+      <p class="note" style="margin-top:16px">Your files live in <code>${esc(state.workspace)}</code></p>
+    </div>
+    <footer><span class="status" id="stStatus"></span><button class="btn go" id="stSave">Save</button></footer>`);
+  $("stSave").onclick = async () => {
+    try {
+      state = await api("/api/setup", { name: $("sN").value, api_key: $("sK").value, model: $("sM").value, effort: $("sE").value });
+      renderSidebar(); $("stStatus").textContent = "Saved ✓";
+    } catch (e) { $("stStatus").textContent = e.message; }
+  };
+}
+
+// ---------- wiring ----------
+$("send").onclick = () => send();
+$("input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
+$("input").addEventListener("input", autosize);
+$("newChat").onclick = async () => { await api("/api/new", {}); welcome(); $("sidebar").classList.remove("open"); };
+$("learnBtn").onclick = openLearn;
+$("settingsBtn").onclick = openSettings;
+$("menuToggle").onclick = () => $("sidebar").classList.toggle("open");
+document.querySelectorAll("[data-doc]").forEach(b => b.onclick = () => openDoc(b.dataset.doc));
+bindStarters(document.querySelector("aside"));
+
+refresh().then(() => { welcome(); if (state.needs_setup) openSetup(); else $("input").focus(); })
+  .catch(e => { $("thread").innerHTML = `<p class="error">Couldn't load Quill: ${esc(e.message)}. Try reloading.</p>`; });
+</script>
+</body>
+</html>

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import sys
 from pathlib import Path
 
@@ -42,7 +43,9 @@ def _read_input(prompt: str = "\nyou › ") -> str | None:
 
 
 def chat(agent, ws: Workspace) -> None:
-    print(f"Quill {__version__} — your writing partner. Type /help for commands.")
+    name = ws.load_config().get("name", "")
+    hello = f"Hi {name.split()[0]}! " if name else ""
+    print(f"Quill {__version__} — {hello}What are we writing today? Type /help for commands.")
     while True:
         try:
             text = _read_input()
@@ -76,6 +79,37 @@ def chat(agent, ws: Workspace) -> None:
                 print(f"\n  (temporary API problem: {type(e).__name__} — try again)")
 
 
+def setup_wizard(ws: Workspace) -> None:
+    """Friendly first-run questions, in the terminal."""
+    config = ws.load_config()
+    print("\n🪶 Welcome to Quill, your personal writing partner.")
+    print("A few quick questions so it can help you properly (Enter to skip).\n")
+    hint = f" [{config['name']}]" if config.get("name") else ""
+    name = input(f"What should Quill call you?{hint} ").strip()
+    name = name or config.get("name", "")
+    what = input("What do you like to write? ").strip()
+    who = input("Who do you usually write for? ").strip()
+    goals = input("Anything you're working toward? ").strip()
+    updates = {"name": name}
+    if not ws.has_credentials() or input("Replace your saved API key? [y/N] ").strip().lower() == "y":
+        print("\nQuill needs an Anthropic API key: https://console.anthropic.com/settings/keys")
+        print("It's stored only on this computer, in a private file.")
+        key = getpass.getpass("API key (hidden): ").strip()
+        if key:
+            updates["api_key"] = key
+    ws.save_config(updates)
+    if what or who or goals:
+        about = "# About Me\n"
+        about += f"\n## What I write\n{what}\n" if what else ""
+        about += f"\n## Who I write for\n{who}\n" if who else ""
+        about += f"\n## What I'm working toward\n{goals}\n" if goals else ""
+        ws.write_about(about)
+    first = name.split()[0] if name else "friend"
+    print(f"\nAll set, {first}. Run `quill` to open Quill in your browser.")
+    if not ws.has_credentials():
+        print("(You still need an API key — run `quill setup` again when you have one.)")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="quill", description="A personal writing agent powered by Claude.")
     p.add_argument("--version", action="version", version=f"quill {__version__}")
@@ -86,7 +120,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="After a one-shot command, stay in chat to keep iterating")
     sub = p.add_subparsers(dest="command")
 
-    sub.add_parser("chat", help="Open an interactive writing session (default)")
+    s = sub.add_parser("web", help="Open Quill in your browser (default)")
+    s.add_argument("--port", type=int, default=8765)
+    s.add_argument("--no-browser", action="store_true", help="Don't open a browser tab automatically")
+    sub.add_parser("setup", help="Set your name, API key, and a bit about you")
+    sub.add_parser("chat", help="Chat with Quill in the terminal")
     s = sub.add_parser("learn", help="Learn your voice from samples of your writing")
     s.add_argument("files", nargs="+", type=Path)
     s = sub.add_parser("draft", help="Draft something from a brief")
@@ -109,7 +147,21 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     ws = Workspace.default()
-    cmd = args.command or "chat"
+    cmd = args.command or "web"
+
+    if cmd == "setup":
+        try:
+            setup_wizard(ws)
+        except (KeyboardInterrupt, EOFError):
+            print()
+            return 130
+        return 0
+    if cmd == "web":
+        from quill.web import serve
+
+        serve(ws, port=getattr(args, "port", 8765), open_browser=not getattr(args, "no_browser", False),
+              model=args.model, effort=args.effort)
+        return 0
 
     # Local commands — no API call.
     if cmd == "drafts":
@@ -150,6 +202,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     from quill.agent import WritingAgent
+
+    if ws.needs_setup():
+        try:
+            setup_wizard(ws)
+        except (KeyboardInterrupt, EOFError):
+            print()
+            return 130
 
     try:
         agent = WritingAgent(ws, model=args.model, effort=args.effort)

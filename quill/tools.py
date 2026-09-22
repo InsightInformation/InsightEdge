@@ -40,6 +40,13 @@ TOOLS: list[dict] = [
         {"content": {**_STR, "description": "The complete new profile in Markdown."}},
         ["content"],
     ),
+    _tool(
+        "update_about_me",
+        "Replace the user's 'About me' document (who they are, what they write, audiences, goals, "
+        "current projects) with a revised full Markdown version. Keep existing facts unless corrected.",
+        {"content": {**_STR, "description": "The complete new About-me document in Markdown."}},
+        ["content"],
+    ),
     _tool("list_drafts", "List saved drafts with word counts and last-modified times.", {}, []),
     _tool(
         "read_draft",
@@ -111,6 +118,7 @@ def run_tool(ws: Workspace, name: str, data: dict) -> str:
     handlers: dict[str, Callable[[], str]] = {
         "read_voice_profile": lambda: ws.read_voice(),
         "update_voice_profile": lambda: (ws.write_voice(data["content"]), "Voice profile updated.")[1],
+        "update_about_me": lambda: (ws.write_about(data["content"]), "About-me updated.")[1],
         "list_drafts": lambda: json.dumps(ws.list_drafts()) if ws.list_drafts() else "No drafts yet.",
         "read_draft": lambda: ws.read_draft(data["name"]),
         "save_draft": lambda: f"Saved to {ws.save_draft(data['name'], data['content'])}.",

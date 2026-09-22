@@ -6,6 +6,7 @@ override with ``QUILL_HOME``) so you can read, edit, and back it up yourself.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import dataclass
@@ -16,6 +17,11 @@ DEFAULT_VOICE = """# My Voice Profile
 
 _No profile yet. Run `quill learn <files>` with a few samples of your own writing,
 or tell Quill about your style in chat and ask it to update this profile._
+"""
+
+DEFAULT_ABOUT = """# About Me
+
+_Tell Quill who you are: what you write, who you write for, and what you're working toward._
 """
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -44,6 +50,14 @@ class Workspace:
         return self.root / "voice.md"
 
     @property
+    def about_path(self) -> Path:
+        return self.root / "about.md"
+
+    @property
+    def config_path(self) -> Path:
+        return self.root / "config.json"
+
+    @property
     def notes_path(self) -> Path:
         return self.root / "notes.md"
 
@@ -60,6 +74,8 @@ class Workspace:
         self.samples_dir.mkdir(parents=True, exist_ok=True)
         if not self.voice_path.exists():
             self.voice_path.write_text(DEFAULT_VOICE, encoding="utf-8")
+        if not self.about_path.exists():
+            self.about_path.write_text(DEFAULT_ABOUT, encoding="utf-8")
         if not self.notes_path.exists():
             self.notes_path.write_text("# Notes & Ideas\n", encoding="utf-8")
 
@@ -69,6 +85,40 @@ class Workspace:
 
     def write_voice(self, content: str) -> None:
         self.voice_path.write_text(content.rstrip() + "\n", encoding="utf-8")
+
+    # --- about me -----------------------------------------------------------
+    def read_about(self) -> str:
+        return self.about_path.read_text(encoding="utf-8")
+
+    def write_about(self, content: str) -> None:
+        self.about_path.write_text(content.rstrip() + "\n", encoding="utf-8")
+
+    # --- config (name, API key, preferences) ---------------------------------
+    def load_config(self) -> dict:
+        try:
+            return json.loads(self.config_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def save_config(self, updates: dict) -> dict:
+        """Merge ``updates`` into the config; keys set to None are removed. File is owner-only."""
+        config = {**self.load_config(), **updates}
+        config = {k: v for k, v in config.items() if v not in (None, "")}
+        fd = os.open(self.config_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, sort_keys=True)
+        os.chmod(self.config_path, 0o600)
+        return config
+
+    def has_credentials(self) -> bool:
+        return bool(
+            self.load_config().get("api_key")
+            or os.environ.get("ANTHROPIC_API_KEY")
+            or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        )
+
+    def needs_setup(self) -> bool:
+        return not self.load_config().get("name") or not self.has_credentials()
 
     # --- drafts -------------------------------------------------------------
     def _draft_file(self, name: str) -> Path:
@@ -106,8 +156,11 @@ class Workspace:
 
     # --- samples ------------------------------------------------------------
     def add_sample(self, source: Path) -> Path:
-        dest = self.samples_dir / f"{slugify(source.stem)}.txt"
-        dest.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+        return self.add_sample_text(source.stem, source.read_text(encoding="utf-8"))
+
+    def add_sample_text(self, name: str, text: str) -> Path:
+        dest = self.samples_dir / f"{slugify(name)}.txt"
+        dest.write_text(text, encoding="utf-8")
         return dest
 
     def list_samples(self) -> list[str]:

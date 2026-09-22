@@ -8,7 +8,7 @@ from typing import Callable
 
 import anthropic
 
-from quill.prompts import SYSTEM_PROMPT, voice_block
+from quill.prompts import SYSTEM_PROMPT, about_block, voice_block
 from quill.store import Workspace
 from quill.tools import TOOLS, ToolInputError, run_tool, validate_input
 
@@ -17,6 +17,14 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_TOKENS = 64000
 MAX_JSON_RETRIES = 2
 MAX_STEPS = 25
+
+
+def make_client(workspace: Workspace) -> anthropic.Anthropic:
+    """Environment credentials win; otherwise use the key saved during setup."""
+    if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"):
+        return anthropic.Anthropic()
+    key = workspace.load_config().get("api_key")
+    return anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
 
 
 class WritingAgent:
@@ -28,20 +36,24 @@ class WritingAgent:
         effort: str | None = None,
         client: anthropic.Anthropic | None = None,
         out: Callable[[str], None] | None = None,
+        on_tool: Callable[[str], None] | None = None,
     ) -> None:
         self.ws = workspace
-        self.model = model or os.environ.get("QUILL_MODEL", DEFAULT_MODEL)
-        self.effort = effort or os.environ.get("QUILL_EFFORT", "high")
-        self.client = client or anthropic.Anthropic()
+        config = workspace.load_config()
+        self.model = model or os.environ.get("QUILL_MODEL") or config.get("model") or DEFAULT_MODEL
+        self.effort = effort or os.environ.get("QUILL_EFFORT") or config.get("effort") or "high"
+        self.client = client or make_client(workspace)
         self.out = out or (lambda s: (sys.stdout.write(s), sys.stdout.flush()))
+        self.on_tool = on_tool or (lambda name: self.out(f"\n  · {name.replace('_', ' ')}…\n"))
         self.messages: list = []
         self._system = self._build_system()
 
     def _build_system(self) -> list[dict]:
-        # Voice profile is snapshotted per conversation so the prefix stays cacheable;
-        # the agent reads the live file via read_voice_profile when it needs the latest.
+        # Profiles are snapshotted per conversation so the prefix stays cacheable;
+        # the agent reads the live voice file via read_voice_profile when it needs the latest.
         return [
             {"type": "text", "text": SYSTEM_PROMPT},
+            {"type": "text", "text": about_block(self.ws.load_config().get("name"), self.ws.read_about())},
             {"type": "text", "text": voice_block(self.ws.read_voice())},
         ]
 
@@ -66,7 +78,7 @@ class WritingAgent:
                 if event.type == "text":
                     self.out(event.text)
                 elif event.type == "content_block_start" and event.content_block.type == "tool_use":
-                    self.out(f"\n  · {event.content_block.name.replace('_', ' ')}…\n")
+                    self.on_tool(event.content_block.name)
             return stream.get_final_message()
 
     def _call_model(self):
