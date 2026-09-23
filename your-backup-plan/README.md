@@ -22,7 +22,7 @@ The site is plain HTML/CSS/JS, so no build step and no monthly hosting fee.
 
 **Easiest: Netlify Drop**
 1. Go to https://app.netlify.com/drop and create a free account.
-2. Drag the `website` folder onto the page. It's live in seconds at a `*.netlify.app` address.
+2. Drag the `website` folder (or `your-backup-plan-website.zip`) onto the page. It's live in seconds at a `*.netlify.app` address.
 3. To use a custom domain (for example `yourbackupplanpgh.com`, about $12–20/yr), buy it at Cloudflare, Porkbun or Namecheap, then add it under **Domain settings** in Netlify.
 
 Other free options: Cloudflare Pages or GitHub Pages.

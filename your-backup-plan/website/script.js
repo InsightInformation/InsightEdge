@@ -14,6 +14,29 @@ links.addEventListener('click', (e) => {
 
 document.getElementById('year').textContent = new Date().getFullYear();
 
+// Share button: native share sheet on phones, copy link elsewhere
+const shareBtn = document.getElementById('share-btn');
+const shareNote = document.getElementById('share-note');
+shareBtn.addEventListener('click', async () => {
+  const url = location.href.split('#')[0];
+  const shareData = {
+    title: 'Your Backup Plan',
+    text: 'Reliable, flexible help for businesses, schools and busy people in the South Hills & Washington County. Call or text Ashley at 412-401-3208.',
+    url,
+  };
+  try {
+    if (navigator.share) {
+      await navigator.share(shareData);
+      return;
+    }
+    await navigator.clipboard.writeText(url);
+    shareNote.textContent = 'Link copied! Paste it in a text or post. Thank you!';
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;
+    shareNote.textContent = `Copy this link to share: ${url}`;
+  }
+});
+
 // Contact form.
 // With no FORM_ENDPOINT set, the form opens the visitor's email app with the
 // request filled in. To receive submissions directly (no email app needed),

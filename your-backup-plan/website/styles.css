@@ -270,6 +270,24 @@ details p { color: var(--muted); padding-bottom: 1.1rem; margin: 0; }
 .contact-form button { width: 100%; margin-top: .4rem; }
 .form-note { font-size: .9rem; color: var(--muted); margin: .9rem 0 0; min-height: 1.4em; text-align: center; }
 
+/* Service area */
+.area { padding: clamp(3.5rem, 7vw, 5.5rem) 0 1rem; }
+.towns { list-style: none; margin: 0 auto; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem; max-width: 900px; }
+.towns li { background: var(--white); border: 1px solid var(--line); border-radius: 999px; padding: .4rem 1rem; font-size: .92rem; color: var(--navy); }
+.towns li:nth-child(4n+1) { background: var(--blush); border-color: transparent; }
+.towns li:nth-child(4n+3) { background: var(--sky); border-color: transparent; }
+.area-note { text-align: center; font-family: var(--script); font-size: 2rem; color: var(--navy); margin: 1.5rem 0 0; }
+
+/* Share + flyer */
+.share { background: var(--blush); border-radius: var(--radius); padding: 1.3rem 1.4rem; margin-bottom: 1.4rem; }
+.share-title { font-family: var(--serif); font-weight: 700; font-size: 1.25rem; color: var(--navy); margin: 0 0 .2rem; line-height: 1.25; }
+.share-sub { font-size: .92rem; color: var(--muted); margin: 0 0 .9rem; }
+.share-btn { border: 0; }
+.share-note { font-size: .88rem; color: var(--muted); margin: .6rem 0 0; min-height: 1.2em; word-break: break-all; }
+.flyer-thumb { display: flex; align-items: center; gap: 1rem; text-decoration: none; color: var(--rose-deep); font-size: .95rem; font-weight: 500; }
+.flyer-thumb img { width: 84px; height: auto; border-radius: 6px; box-shadow: var(--shadow); transform: rotate(-3deg); transition: transform .2s; }
+.flyer-thumb:hover img { transform: rotate(0) scale(1.04); }
+
 /* Footer */
 .footer { background: var(--navy); color: #dfe7ef; text-align: center; padding: 2.5rem 16px 5.5rem; }
 .footer-who { text-transform: uppercase; letter-spacing: .3em; font-size: .8rem; margin: 0 0 .6rem; }
