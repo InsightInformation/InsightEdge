@@ -163,6 +163,34 @@ class Workspace:
         dest.write_text(text, encoding="utf-8")
         return dest
 
+    def list_versions(self, name: str) -> list[dict]:
+        """Earlier saved versions of a draft, newest first."""
+        stem = slugify(name)
+        out = []
+        for p in self.drafts_dir.glob(f"{stem}.v*.md.bak"):
+            m = re.fullmatch(rf"{re.escape(stem)}\.v(\d+)\.md\.bak", p.name)
+            if m:
+                out.append({
+                    "version": int(m.group(1)),
+                    "words": len(p.read_text(encoding="utf-8").split()),
+                    "modified": datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                })
+        return sorted(out, key=lambda v: -v["version"])
+
+    def read_version(self, name: str, version: int) -> str:
+        path = self.drafts_dir / f"{slugify(name)}.v{int(version)}.md.bak"
+        if not path.exists():
+            raise FileNotFoundError(f"No version {version} of '{slugify(name)}'.")
+        return path.read_text(encoding="utf-8")
+
+    def delete_draft(self, name: str) -> None:
+        """Move a draft out of the list; the file is kept as a .deleted backup."""
+        path = self._draft_file(name)
+        if not path.exists():
+            raise FileNotFoundError(f"No draft named '{slugify(name)}'.")
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        path.rename(path.with_name(f"{path.stem}.deleted-{stamp}.md.bak"))
+
     def list_samples(self) -> list[str]:
         return sorted(p.stem for p in self.samples_dir.glob("*.txt"))
 
@@ -171,6 +199,19 @@ class Workspace:
         if not path.exists():
             raise FileNotFoundError(f"No sample named '{slugify(name)}'.")
         return path.read_text(encoding="utf-8")
+
+    def samples_for_prompt(self, max_words: int = 8000) -> list[tuple[str, str]]:
+        """Sample texts to show the model, newest first, trimmed to a total word budget."""
+        paths = sorted(self.samples_dir.glob("*.txt"), key=lambda p: p.stat().st_mtime, reverse=True)
+        out, left = [], max_words
+        for p in paths:
+            if left <= 200:
+                break
+            words = p.read_text(encoding="utf-8").split(" ")
+            text = " ".join(words[:left])
+            left -= len(words[:left])
+            out.append((p.stem, text))
+        return out
 
     # --- notes --------------------------------------------------------------
     def read_notes(self) -> str:

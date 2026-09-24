@@ -97,3 +97,24 @@ def test_chat_streams_events(server):
 def test_chat_reports_errors(server):
     body = call(server, "/api/chat", {"message": "hello"}, raw=True)  # no queued response -> error
     assert '"type": "error"' in body
+
+
+def test_check_endpoint(server):
+    r = call(server, "/api/check", {"text": "It's not about speed, it's about showing up."})
+    assert r["score"] < 100 and any(t["kind"] == "contrast" for t in r["tells"])
+
+
+def test_rewrite_endpoint(server):
+    server["fake"].responses.append(msg("end_turn", text("<rewrite>I ran.</rewrite>")))
+    r = call(server, "/api/rewrite", {"passage": "Running is a journey.", "instruction": "tighten"})
+    assert r["text"] == "I ran." and r["check"]["score"] == 100
+
+
+def test_versions_and_delete_endpoints(server):
+    call(server, "/api/draft", {"name": "e", "content": "one"})
+    call(server, "/api/draft", {"name": "e", "content": "two"})
+    d = call(server, "/api/draft?name=e")
+    assert d["versions"][0]["version"] == 1
+    assert call(server, "/api/version?name=e&v=1")["content"].strip() == "one"
+    call(server, "/api/draft/delete", {"name": "e"})
+    assert call(server, "/api/state")["drafts"] == []

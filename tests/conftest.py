@@ -26,7 +26,11 @@ class FakeClient:
     def __init__(self, responses):
         self.responses = list(responses)
         self.calls = []
-        self.beta = NS(messages=NS(stream=self._stream))
+        self.beta = NS(messages=NS(stream=self._stream, create=self._create))
+
+    def _create(self, **kwargs):
+        self.calls.append({**kwargs, "messages": list(kwargs["messages"])})
+        return self.responses.pop(0)
 
     def _stream(self, **kwargs):
         self.calls.append({**kwargs, "messages": list(kwargs["messages"])})

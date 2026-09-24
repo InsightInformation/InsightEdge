@@ -34,8 +34,17 @@ runs only on your computer. From there:
 - **Teach Quill my voice**: paste something you've written; Quill studies it and builds your voice
   profile. Add a few pieces over time and it keeps getting closer to how you sound.
 - **Draft / Edit / Get feedback / Brainstorm**: pick a starter or just type what you want.
-- **My drafts**: everything Quill saves shows up in the sidebar. Open one to edit it yourself,
-  copy it, get feedback, or ask Quill to revise it.
+- **The desk**: open any draft (or **＋ Blank page**) and it fills the screen as a proper editor
+  that autosaves as you type. Beside the page:
+  - **Sound check** scores how human the piece reads and underlines AI tells right in the text:
+    stock words ("delve", "journey", "testament"), "it's not X, it's Y" framing, "The result?"
+    reveals, em-dash habits, tidy morals, and monotone sentence rhythm. Click a finding to jump
+    to it, or hit **Fix** to have Quill rewrite just that sentence.
+  - **Rework a passage**: select any text and pick *Less AI*, *Tighten*, *Plainer*, *More vivid*,
+    *Warmer*, *Sharper*, or type your own instruction. Quill rewrites only that passage, in your
+    voice, and you choose whether to use it. Ctrl+Z still works.
+  - **Versions** lists every earlier save, and you can preview or restore any of them. There's
+    also rename, export to `.md`, and **Focus** mode (Ctrl+.) to hide everything but the page.
 - **My voice profile / About me**: read and edit what Quill knows about you. It updates these on
   its own when you tell it something lasting ("I hate semicolons", "I'm starting a newsletter").
 - **Settings**: change your name, API key, model, or effort.
@@ -62,7 +71,13 @@ quill drafts        # also: quill voice, quill where (no API call)
   `name.vN.md.bak`, so nothing is lost.
 - **About me** (`about.md`): who you are, what you write, your audiences and goals, so Quill's help is personal.
 - **Notes** (`notes.md`) — ideas and snippets captured during sessions.
-- **Samples** (`samples/*.txt`) — copies of the writing you taught it with.
+- **Samples** (`samples/*.txt`) — copies of the writing you taught it with. The samples
+  themselves (up to about 8,000 words, newest first) go to Claude with every request. The profile
+  only describes your voice; the samples show it, and Claude imitates what it can see.
+- **AI-tell checker** (`quill/tells.py`) is a local, rule-based scan that runs without an API
+  call. Quill runs it on every draft before saving and revises anything it flags. A habit that
+  shows up in your own samples (say you love em dashes) is treated as your voice and never
+  flagged.
 
 Everything lives in `~/.quill` (override with `QUILL_HOME`) as plain files you own.
 
