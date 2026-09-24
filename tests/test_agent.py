@@ -35,6 +35,25 @@ def test_runs_tools_and_returns_final_text(ws):
     assert call["output_config"] == {"effort": "high"}
     assert "about_the_user" in call["system"][1]["text"]
     assert "voice_profile" in call["system"][2]["text"]
+    assert "writing_samples" in call["system"][3]["text"]
+
+
+def test_samples_are_shown_to_the_model(ws):
+    ws.add_sample_text("blog", "i never capitalize anything and i like it that way.")
+    agent, client = make(ws, [msg("end_turn", text("ok"))])
+    agent.send("hi")
+    assert "i never capitalize anything" in client.calls[0]["system"][3]["text"]
+
+
+def test_rewrite_passage_returns_only_the_passage(ws):
+    from quill.agent import rewrite_passage
+
+    client = FakeClient([msg("end_turn", text("<rewrite>\nI ran. It hurt.\n</rewrite>"))])
+    out = rewrite_passage(ws, client, passage=" Running is a journey. ", instruction="human",
+                          before="Intro.", after="Outro.")
+    assert out == " I ran. It hurt. "
+    call = client.calls[0]
+    assert "<passage>" in call["messages"][0]["content"] and call["fallbacks"] == "default"
 
 
 def test_invalid_tool_input_returns_error_result(ws):

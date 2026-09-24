@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, urlparse
 
 import anthropic
 
-from quill import __version__, prompts
+from quill import __version__, prompts, tells
 from quill.store import Workspace, slugify
 
 MAX_BODY = 5 * 1024 * 1024
@@ -33,6 +33,7 @@ TOOL_LABELS = {
     "read_sample": "Reading a sample",
     "read_notes": "Reading your notes",
     "append_note": "Adding to your notes",
+    "check_writing": "Checking for AI tells",
 }
 
 
@@ -47,6 +48,8 @@ def friendly_error(e: Exception) -> str:
         return "Couldn't reach the Claude API. Check your internet connection."
     if isinstance(e, anthropic.APIStatusError):
         return f"The Claude API returned an error ({e.status_code}): {e.message}"
+    if isinstance(e, RuntimeError):
+        return str(e)
     return f"Something went wrong: {e}"
 
 
@@ -160,7 +163,15 @@ def make_handler(app: QuillApp, port: int):
                     self._json(app.state())
                 elif url.path == "/api/draft":
                     name = parse_qs(url.query).get("name", [""])[0]
-                    self._json({"name": slugify(name), "content": app.ws.read_draft(name)})
+                    self._json({"name": slugify(name), "content": app.ws.read_draft(name),
+                                "versions": app.ws.list_versions(name)})
+                elif url.path == "/api/version":
+                    q = parse_qs(url.query)
+                    name, v = q.get("name", [""])[0], q.get("v", ["0"])[0]
+                    if not v.isdigit():
+                        self._error(HTTPStatus.BAD_REQUEST, "Bad version.")
+                        return
+                    self._json({"name": slugify(name), "version": int(v), "content": app.ws.read_version(name, int(v))})
                 else:
                     self._error(HTTPStatus.NOT_FOUND, "Not found.")
             except FileNotFoundError as e:
@@ -210,6 +221,18 @@ def make_handler(app: QuillApp, port: int):
                     return
                 path = ws.save_draft(name, content)
                 self._json({"name": path.stem})
+            elif url.path == "/api/draft/delete":
+                try:
+                    ws.delete_draft(str(data.get("name", "")))
+                except FileNotFoundError as e:
+                    self._error(HTTPStatus.NOT_FOUND, str(e))
+                    return
+                self._json({"ok": True})
+            elif url.path == "/api/check":
+                samples = "\n\n".join(t for _, t in ws.samples_for_prompt(max_words=20000))
+                self._json(tells.analyze(str(data.get("text", "")), samples))
+            elif url.path == "/api/rewrite":
+                self._rewrite(data)
             elif url.path in ("/api/voice", "/api/about"):
                 content = str(data.get("content", ""))
                 (ws.write_voice if url.path == "/api/voice" else ws.write_about)(content)
@@ -225,6 +248,26 @@ def make_handler(app: QuillApp, port: int):
                 self._json({"name": saved, "prompt": prompts.LEARN_TASK.format(names=saved)})
             else:
                 self._error(HTTPStatus.NOT_FOUND, "Not found.")
+
+        def _rewrite(self, data: dict) -> None:
+            import quill.agent as agent_mod
+
+            passage = str(data.get("passage", ""))
+            if not passage.strip():
+                self._error(HTTPStatus.BAD_REQUEST, "Select some text to rewrite first.")
+                return
+            try:
+                text = agent_mod.rewrite_passage(
+                    app.ws, agent_mod.make_client(app.ws), passage=passage,
+                    instruction=str(data.get("instruction", "human")),
+                    before=str(data.get("before", "")), after=str(data.get("after", "")),
+                    model=app.model, effort=app.effort,
+                )
+            except Exception as e:  # report to the page instead of dying
+                self._error(HTTPStatus.BAD_GATEWAY, friendly_error(e))
+                return
+            samples = "\n\n".join(t for _, t in app.ws.samples_for_prompt(max_words=20000))
+            self._json({"text": text, "check": tells.analyze(text, samples)})
 
         def _chat(self, message: str) -> None:
             if not message:

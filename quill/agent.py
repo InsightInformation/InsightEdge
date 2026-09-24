@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from typing import Callable
 
 import anthropic
 
-from quill.prompts import SYSTEM_PROMPT, about_block, voice_block
+from quill.prompts import REWRITE_PRESETS, REWRITE_SYSTEM, SYSTEM_PROMPT, about_block, samples_block, voice_block
 from quill.store import Workspace
 from quill.tools import TOOLS, ToolInputError, run_tool, validate_input
 
@@ -55,6 +56,8 @@ class WritingAgent:
             {"type": "text", "text": SYSTEM_PROMPT},
             {"type": "text", "text": about_block(self.ws.load_config().get("name"), self.ws.read_about())},
             {"type": "text", "text": voice_block(self.ws.read_voice())},
+            # Real samples beat any description of a voice: the model imitates what it sees.
+            {"type": "text", "text": samples_block(self.ws.samples_for_prompt())},
         ]
 
     def reset(self) -> None:
@@ -152,3 +155,48 @@ class WritingAgent:
             return {**result, "content": run_tool(self.ws, block.name, data)}
         except (ToolInputError, FileNotFoundError, OSError) as e:
             return {**result, "content": f"Error: {e}", "is_error": True}
+
+
+def rewrite_passage(
+    ws: Workspace,
+    client: anthropic.Anthropic,
+    *,
+    passage: str,
+    instruction: str,
+    before: str = "",
+    after: str = "",
+    model: str | None = None,
+    effort: str | None = None,
+) -> str:
+    """Rewrite one passage of a draft in the user's voice and return only the new passage."""
+    config = ws.load_config()
+    model = model or os.environ.get("QUILL_MODEL") or config.get("model") or DEFAULT_MODEL
+    effort = effort or os.environ.get("QUILL_EFFORT") or config.get("effort") or "high"
+    how = REWRITE_PRESETS.get(instruction, instruction.strip() or REWRITE_PRESETS["human"])
+    prompt = (
+        f"<before>\n{before[-2500:]}\n</before>\n\n<passage>\n{passage}\n</passage>\n\n"
+        f"<after>\n{after[:1500]}\n</after>\n\nRewrite only the passage. {how}"
+    )
+    response = client.beta.messages.create(
+        model=model,
+        max_tokens=16000,
+        system=[
+            {"type": "text", "text": REWRITE_SYSTEM},
+            {"type": "text", "text": voice_block(ws.read_voice())},
+            {"type": "text", "text": samples_block(ws.samples_for_prompt())},
+        ],
+        messages=[{"role": "user", "content": prompt}],
+        output_config={"effort": effort},
+        cache_control={"type": "ephemeral"},
+        betas=[FALLBACK_BETA],
+        fallbacks="default",
+    )
+    if response.stop_reason == "refusal":
+        raise RuntimeError("Claude declined to rewrite this passage.")
+    out = "".join(b.text for b in response.content if b.type == "text")
+    m = re.search(r"<rewrite>\n?(.*?)\n?</rewrite>", out, re.S)
+    text = (m.group(1) if m else out).strip("\n")
+    # Keep the passage's own leading/trailing whitespace so it drops back in cleanly.
+    lead = passage[: len(passage) - len(passage.lstrip())]
+    trail = passage[len(passage.rstrip()):]
+    return lead + text.strip() + trail

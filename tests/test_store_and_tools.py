@@ -62,3 +62,28 @@ def test_every_tool_has_a_handler(ws):
         props = tool["input_schema"]["properties"]
         data = {k: sample_inputs[k] for k in props}
         assert isinstance(run_tool(ws, tool["name"], validate_input(tool["name"], data)), str)
+
+
+def test_versions_and_delete(ws):
+    ws.save_draft("Essay", "one")
+    ws.save_draft("Essay", "two")
+    ws.save_draft("Essay", "three")
+    assert [v["version"] for v in ws.list_versions("essay")] == [2, 1]
+    assert ws.read_version("essay", 1).strip() == "one"
+    ws.delete_draft("essay")
+    assert ws.list_drafts() == []
+    with pytest.raises(FileNotFoundError):
+        ws.delete_draft("essay")
+
+
+def test_save_draft_reports_tells(ws):
+    out = run_tool(ws, "save_draft", {"name": "x", "content": "It's not about speed, it's about showing up."})
+    assert "Saved" in out and "contrast" in out
+    assert "No AI tells" in run_tool(ws, "save_draft", {"name": "y", "content": "I ran. It hurt."})
+
+
+def test_samples_for_prompt_respects_budget(ws):
+    ws.add_sample_text("a", "word " * 5000)
+    ws.add_sample_text("b", "word " * 5000)
+    total = sum(len(t.split()) for _, t in ws.samples_for_prompt(max_words=6000))
+    assert total <= 6000
